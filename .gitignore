@@ -1,0 +1,5 @@
+compile.exe
+spcomp.exe
+compile.dat
+include/*.inc
+compiled
