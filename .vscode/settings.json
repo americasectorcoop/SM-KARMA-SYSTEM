@@ -1,3 +1,16 @@
 {
-  "sourcepawnLanguageServer.sourcemod_home": "c:/Users/aleja/repositories/KARMA-SYSTEM/include"
+  "sourcepawnLanguageServer.trace.server": "verbose",
+  "sourcepawnLanguageServer.sourcemod_home": "c:/Users/aleja/repositories/KARMA-SYSTEM/include",
+  "terminal.integrated.shell.windows": "C:\\Windows\\System32\\cmd.exe",
+  "files.exclude": {
+    "**/.git": true,
+    "**/.svn": true,
+    "**/.hg": true,
+    "**/CVS": true,
+    "**/.DS_Store": true,
+    "**/include/*.inc": true
+    // "**/compile*": true,
+    // "**/spcomp.exe": true
+  }
 }
+// file_path_new, "-D", compile_path, "-v 0", "-i"

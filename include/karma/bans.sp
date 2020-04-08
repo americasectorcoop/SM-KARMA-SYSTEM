@@ -7,13 +7,17 @@ TopMenu g_bans_main_menu;
 ArrayList AdtBanReasons;
 ArrayList AdtUnbanReasons;
 
-// Definición de current ban
+// Definición de current ban - INTEGER
 #define CURRENT_BAN_INDEX_TARGET 0
 #define CURRENT_BAN_INDEX_USERID 1
 #define CURRENT_BAN_INDEX_REASON 2
-#define CURRENT_BAN_INDEX_STEAMID 3
 
-int g_current_ban[MAXPLAYERS + 1][4];
+// Definición de current ban - STRINGS
+#define CURRENT_BAN_INDEX_STEAMID 0
+#define CURRENT_BAN_INDEX_CLIENTIP 1
+
+// char sCurrentBan[MAXPLAYERS + 1][2][32];
+int iCurrentBan[MAXPLAYERS + 1][3];
 
 // fine
 void vBansRegister()
@@ -22,7 +26,7 @@ void vBansRegister()
 	LoadTranslations("basebans.phrases");
 	LoadTranslations("core.phrases");
 	
-	RegAdminCmd("sm_ban", CommandBan, ADMFLAG_GENERIC, "sm_ban <#userid|name> <reason>");
+	RegAdminCmd("sm_ban", CommandBan, ADMFLAG_GENERIC, "sm_ban <#userid|name>");
 	// RegAdminCmd("sm_unban", CommandUnban, ADMFLAG_GENERIC, "sm_unban <steamid> <reason>");
 	
 	/* Account for late loading */
@@ -33,7 +37,7 @@ void vBansRegister()
 	
 	AdtBanReasons = new ArrayList(MAX_REASON_LENGTH);
 	AdtUnbanReasons = new ArrayList(MAX_REASON_LENGTH);
-
+	
 	g_database.Query(onBanFetchReasons, "SELECT `id`, `description` FROM `ks_bans_reasons`;", AdtBanReasons, DBPrio_High);
 	g_database.Query(onBanFetchReasons, "SELECT `id`, `description` FROM `ks_unbans_reasons`;", AdtUnbanReasons, DBPrio_High);
 }
@@ -65,7 +69,7 @@ public void onBanFetchReasons(Database db, DBResultSet results, const char[] err
 // Funcion para cuando un jugador se conecta al servidor...
 public void OnClientAuthorized(int client, const char[] auth) {
 	if (!client)return;
-	if (!IsFakeClient(client)) return;
+	if (IsFakeClient(client))return;
 	// Creando variables necesarias
 	char steam_id[32], sql_command[255], client_ip[16];
 	// Obteniendo el steam id del jugador
@@ -85,11 +89,10 @@ public void onPlayerFetch(Database db, DBResultSet results, const char[] error, 
 		do {
 			while (results.FetchRow()) {
 				int ban_actived = results.FetchInt(0);
-				if(ban_actived == 1) {
+				if (ban_actived == 1) {
 					char reason[255];
 					results.FetchString(1, reason, 255);
 					KickClient(client, "You're banned\n, reason: %s\nplease visit: %s", reason, BANS_URL);
-					break;
 				}
 			}
 		} while (results.FetchMoreResults());
@@ -112,8 +115,7 @@ public Action CommandBan(int client, int args) {
 		return Plugin_Handled;
 	}
 	
-	SetBanTarget(client, target);
-	SetBanUserId(client, GetClientUserId(target));
+	StoreBanTarget(client, target);
 	
 	// DisplayBanReasonMenu(client);
 	vDisplayBanReasonsMenu(client, MenuHandler_BanReasonList, "Ban reason", AdtBanReasons);
@@ -167,15 +169,15 @@ public int MenuHandler_BanPlayerList(Menu menu, MenuAction action, int client, i
 		}
 		else
 		{
-			SetBanTarget(client, target);
-			SetBanUserId(client, userid);
+			StoreBanTarget(client, target);
+			
 			vDisplayBanReasonsMenu(client, MenuHandler_BanReasonList, "Ban reason", AdtBanReasons);
 		}
 	}
 }
 
 // fine
-void vDisplayBanReasonsMenu(int client, MenuHandler handler, char[] title, ArrayList reasons) {
+void vDisplayBanReasonsMenu(int client, MenuHandler handler, const char[] title, ArrayList reasons) {
 	Menu menu = new Menu(handler);
 	menu.SetTitle("%s %N", title, GetBanTarget(client));
 	menu.ExitBackButton = true;
@@ -209,28 +211,55 @@ public int MenuHandler_BanReasonList(Menu menu, MenuAction action, int client, i
 	}
 }
 
+stock void StoreBanTarget(int client, int target) {
+	SetBanTarget(client, target);
+	SetBanUserId(client, target);
+	SetBanSteamId(client, target);
+	SetBanClientIp(client, target);
+}
+
+stock void SetBanSteamId(int client, int target) {
+	char steam_id[32];
+	GetClientAuthId(client, AuthId_Steam2, steam_id, 32);
+	// Format(sCurrentBan[client][CURRENT_BAN_INDEX_STEAMID], 32, "%s", steam_id);
+}
+
+stock void GetBanSteamId(int client, char[] steam_id, int size_of) {
+	// Format(steam_id, size_of, "%s", sCurrentBan[client][CURRENT_BAN_INDEX_STEAMID]);
+}
+
+stock void SetBanClientIp(int client, int target) {
+	char client_ip[16];
+	GetClientAuthId(client, AuthId_Steam2, client_ip, 16);
+	// Format(sCurrentBan[client][CURRENT_BAN_INDEX_CLIENTIP], 16, "%s", client_ip);
+}
+
+stock void GetBanClientIp(int client, char[] client_ip, int size_of) {
+	// Format(client_ip, size_of, "%s", sCurrentBan[client][CURRENT_BAN_INDEX_CLIENTIP]);
+}
+
 stock void SetBanTarget(int client, int target) {
-	g_current_ban[client][CURRENT_BAN_INDEX_TARGET] = target;
+	iCurrentBan[client][CURRENT_BAN_INDEX_TARGET] = target;
 }
 
 stock int GetBanTarget(int client) {
-	return g_current_ban[client][CURRENT_BAN_INDEX_TARGET];
+	return iCurrentBan[client][CURRENT_BAN_INDEX_TARGET];
 }
 
 stock void SetBanUserId(int client, int userid) {
-	g_current_ban[client][CURRENT_BAN_INDEX_USERID] = userid;
+	iCurrentBan[client][CURRENT_BAN_INDEX_USERID] = userid;
 }
 
 stock int GetBanUserId(int client) {
-	return g_current_ban[client][CURRENT_BAN_INDEX_USERID];
+	return iCurrentBan[client][CURRENT_BAN_INDEX_USERID];
 }
 
 stock void SetBanReason(int client, int reason_id) {
-	g_current_ban[client][CURRENT_BAN_INDEX_REASON] = reason_id;
+	iCurrentBan[client][CURRENT_BAN_INDEX_REASON] = reason_id;
 }
 
 stock int GetBanReason(int client) {
-	return g_current_ban[client][CURRENT_BAN_INDEX_REASON];
+	return iCurrentBan[client][CURRENT_BAN_INDEX_REASON];
 }
 
 // fine
@@ -274,228 +303,41 @@ public void AdminMenu_Ban(TopMenu topmenu,
 	}
 }
 
-public void AddBan(int client)
+void AddBan(int client)
 {
-	PrintToChat(client, "User: %N\nReason: %d\nUser Id: %d", GetBanTarget(client), GetBanReason(client), GetBanUserId(client));
+	char target_steam_id[32], target_ip[16];
+	GetBanSteamId(client, target_steam_id, 32);
+	GetBanClientIp(client, target_ip, 16);
+	int reason_id = GetBanReason(client);
+	char sql_command[128];
+	char client_steam_id[32];
+	GetClientAuthId(client, AuthId_Steam2, client_steam_id, 32);
+	Format(sql_command, sizeof(sql_command), "CALL KS_BAN_ADD('%s', '%s', '%s', %d);", target_steam_id, target_ip, client_steam_id, reason_id);
+	g_database.Query(onBanStored, sql_command, client);
 }
 
-// void AddBan(int client, constchar[] target_authid, int time, const char[] reason, char[] buffer, int buffer_length) {
-// 	char banned_name_by[MAX_NAME_LENGTH * 2] = "Vote";
-// 	char client_authid[64] = "server";
-// 	if (client) {
-// 		GetClientName(client, banned_name_by, sizeof(banned_name_by));
-// 		SQL_EscapeString(g_database, banned_name_by, banned_name_by, sizeof(banned_name_by));
-// 		GetClientAuthId(client, AuthId_Steam2, client_authid, sizeof(client_authid));
+public void onBanStored(Database db, DBResultSet results, const char[] error, int client) {
+	if (StrEqual(error, "")) {
+		int target = GetBanTarget(client);
+		PrintToChat(client, "[BAN] Ban for %N has been added successfully", target);
+	} else {
+		PrintToChat(client, "[BAN] Ban for %N could not be added because %s", error);
+	}
+}
 
-// 		g_database.Query()
-// 		if (StrEqual(client_authid, target_authid)) {
-// 			Format(buffer, buffer_length, "%s", "[BAN] You can't ban your self");
-// 		}
-// 	}
-// 	int BanTime = 0;
-// 	if (!time) {
-// 		BanTime = 0;
-// 	} else {
-// 		BanTime = GetTime() + time * 3600;
-// 	}
-// 	char reason_fixed[128];
-// 	SQL_EscapeString(g_database, reason, reason_fixed, sizeof(reason_fixed));
-// 	char sql_command[512];
-// 	Format(sql_command, sizeof(sql_command), "INSERT IGNORE INTO mb_bans (player_name, steam_id, admin_steamid, ban_length, ban_time, ban_reason, banned_by, timestamp) VALUES ('%s', '%s', '%s', '%d', '%d', '%s', '%s', CURRENT_TIMESTAMP)", "unknown", target_authid, client_authid, time, BanTime, reason_fixed, banned_name_by);
-// 	DBResultSet player_ban;
-// 	if ((player_ban = SQL_Query(g_database, sql_command)) != null) {
-// 		if (player_ban.AffectedRows) {
-// 			Format(buffer, buffer_length, "%s%d%s", "[BAN] The player was successfully banned by ", time, " hours");
-// 		} else {
-// 			Format(buffer, buffer_length, "%s", "[BAN] The player it's already banned");
-// 		}
-// 		player_ban.FetchMoreResults();
-// 	} else {
-// 		Format(buffer, buffer_length, "%s", "[BAN] Something went wrong, the player was not banned");
-// 	}
-// }
+stock void Unban(int client, char[] target_steam_id, int reason_id) {
+	char sql_command[128], client_steam_id[32];
+	GetClientAuthId(client, AuthId_Steam2, client_steam_id, 32);
+	// IN _steam_player_id VARCHAR(32), IN _steam_admin_id VARCHAR(32), IN _unban_reason_id INT UNSIGNED
+	Format(sql_command, 128, "CALL KS_BAN_REMOVE('%s', '%s', %d);", target_steam_id, client_steam_id, reason_id);
+	g_database.Query(onUnban, sql_command, client);
+}
 
-// void PrepareBan(int client, int target, int reason, char[] buffer, int buffer_length) {
-// 	if (client == target) {
-// 		Format(buffer, buffer_length, "%s", "[BAN] You can't ban your self");
-// 		return;
-// 	}
-// 	int originalTarget = GetClientOfUserId(g_ban_target_user_id[client]);
-// 	if (originalTarget != target) {
-// 		Format(buffer, buffer_length, "%s", "[BAN] Player no longer available");
-// 		return;
-// 	}
-// 	int BanTime = 0;
-// 	if (!time) {
-// 		BanTime = 0;
-// 	} else {
-// 		BanTime = GetTime() + time * 3600;
-// 	}
-// 	char target_authid[64], 
-// 	target_name[32], 
-// 	target_ip[16];
-// 	GetClientAuthId(target, AuthId_Steam2, target_authid, 64);
-// 	GetClientIP(target, target_ip, 16);
-// 	GetClientName(target, target_name, 32);
-// 	char target_name_fixed[MAX_NAME_LENGTH * 2];
-// 	SQL_EscapeString(g_database, target_name, target_name_fixed, sizeof(target_name_fixed));
-
-// 	char reason_fixed[128];
-// 	SQL_EscapeString(g_database, reason, reason_fixed, sizeof(reason_fixed));
-
-// 	char banned_name_by[MAX_NAME_LENGTH * 2] = "Vote";
-// 	char client_authid[64] = "server";
-// 	if (client) {
-// 		GetClientName(client, banned_name_by, sizeof(banned_name_by));
-// 		SQL_EscapeString(g_database, banned_name_by, banned_name_by, sizeof(banned_name_by));
-// 		GetClientAuthId(client, AuthId_Steam2, client_authid, 64);
-// 	}
-
-// 	char sql_command[512];
-// 	Format(sql_command, sizeof(sql_command), "INSERT IGNORE INTO mb_bans (player_name, steam_id, ban_length, ban_time, ban_reason, banned_by, ip, admin_steamid, timestamp) VALUES ('%s', '%s', '%d', '%d', '%s', '%s', '%s', '%s', CURRENT_TIMESTAMP);", target_name_fixed, target_authid, time, BanTime, reason_fixed, banned_name_by, target_ip, client_authid);
-
-// 	DBResultSet insertResult;
-
-// 	KickClient(target, "You have been banned.\nVisit: %s for more info", BANS_URL);
-// 	if ((insertResult = SQL_Query(g_database, sql_command)) != null) {
-// 		if (insertResult.AffectedRows) {
-// 			Format(buffer, buffer_length, "%s%d%s", "[BAN] The player was successfully banned by ", time, " hours");
-// 		} else {
-// 			Format(buffer, buffer_length, "%s", "[BAN] The player it's already banned");
-// 		}
-// 		insertResult.FetchMoreResults();
-// 	} else {
-// 		Format(buffer, buffer_length, "%s", "[BAN] Something went wrong, the player was not banned");
-// 	}
-// }
-
-
-
-// public Action Command_AddBan(int client, int args)
-// {
-//   if (args < 2)
-//   {
-//     ReplyToCommand(client, "[BAN] Usage: sm_addban <time> <steamid> [reason]");
-//     return Plugin_Handled;
-//   }
-
-//   char arg_string[256];
-//   char time[50];
-//   char authid[50];
-
-//   GetCmdArgString(arg_string, sizeof(arg_string));
-
-//   int len, total_len;
-
-//   /* Get time */
-//   if ((len = BreakString(arg_string, time, sizeof(time))) == -1)
-//   {
-//     ReplyToCommand(client, "[BAN] Usage: sm_addban <time> <steamid> [reason]");
-//     return Plugin_Handled;
-//   }	
-//   total_len += len;
-
-//   /* Get steamid */
-//   if ((len = BreakString(arg_string[total_len], authid, sizeof(authid))) != -1) {
-//     total_len += len;
-//   } else {
-//     total_len = 0;
-//     arg_string[0] = '\0';
-//   }
-//   if (strncmp(authid, "STEAM_", 6) != 0 || authid[7] != ':') {
-//     ReplyToCommand(client, "[BAN] Invalid SteamID specified: %s", authid);
-//     return Plugin_Handled;
-//   }
-
-//   char buffer[255] = "Something its wrong";
-//   int hours = StringToInt(time);
-//   AddBan(client, authid, hours, arg_string[total_len], buffer, 255);
-//   ReplyToCommand(client, "%s", buffer);
-
-//   return Plugin_Handled;
-// } 
-
-// public Action CommandUnban(int client, int args) {
-//   if (args < 2) {
-//     ReplyToCommand(client, "[BAN] Usage: sm_unban <steamid> <reason>");
-//     return Plugin_Handled;
-//   }
-
-//   char client_authid[MAX_NAME_LENGTH] = "server";
-//   if(client) {
-//     GetClientAuthId(client, AuthId_Steam2, client_authid, sizeof(client_authid));
-//   }
-
-//   char target_authid[64];
-//   GetCmdArg(1, target_authid, 64);
-//   ReplaceString(target_authid, sizeof(target_authid), "\"", "");
-//   char unbanned_reason[128] = "Without reason";
-//   GetCmdArg(2, unbanned_reason, 128);
-//   ReplaceString(unbanned_reason, sizeof(unbanned_reason), "\"", "");
-//   char sql_command[128];
-//   // Formateando datos de actualizacion
-//   // Format(sql_command, 128, "SELECT `steam_id`, `ban_time`, `admin_steamid` FROM `mb_bans` WHERE `steam_id` = '%s' LIMIT 1;", target_authid);
-//   Format(sql_command, sizeof(sql_command), "SELECT `admin_steamid` FROM `mb_bans` WHERE `steam_id` = '%s' LIMIT 1;", target_authid);
-//   // LogError(sql_command);
-//   DBResultSet player_data;
-//   // Verficando que se haya enviado correctamente
-//   if((player_data = SQL_Query(g_database, sql_command)) != null) {
-//     // Extrayendo datos
-//     if(player_data.FetchRow()) {
-//       // STEAM ID del cliente
-//       // char steam_id_sql[MAX_NAME_LENGTH];
-//       // player_data.FetchString(0, steam_id_sql, MAX_NAME_LENGTH);
-//       // TIEMPO DEL BAN
-//       // int ban_expired = player_data.FetchInt(1);
-//       // STEAM id del admin
-//       char admin_authid[MAX_NAME_LENGTH];
-//       player_data.FetchString(0, admin_authid, MAX_NAME_LENGTH);
-//       // Verificando si es igual
-//       if(StrEqual(client_authid, admin_authid) || StrEqual(admin_authid, "server") || StrEqual(client_authid, "server")) {
-//         char queryupdate[128];
-//         Format(queryupdate, sizeof(queryupdate), "UPDATE mb_bans SET unbanned_by = '%s', unbanned_reason = '%s' WHERE steam_id = '%s'", client_authid, unbanned_reason, target_authid);
-//         char querydel[128];
-//         Format(querydel, sizeof(querydel), "DELETE FROM mb_bans WHERE steam_id = '%s'", target_authid);
-//         Transaction transaction = new Transaction();
-//         transaction.AddQuery(queryupdate);
-//         transaction.AddQuery(querydel);
-//         g_database.Execute(transaction, onBanUpdated, onUnbanFailed, client, DBPrio_High);
-//         ReplyToCommand(client, "[BAN] The player has been removed of bans.");
-//       } else {
-//         ReplyToCommand(client, "[BAN] You can't unban bans of another admin/mod");
-//       }
-//       player_data.FetchMoreResults();
-//     } else {
-//       ReplyToCommand(client, "[BAN] The player with the steam id %s does not exist", target_authid);
-//     }
-//   } else {
-//     char error[255];
-//     SQL_GetError(g_database, error, sizeof(error));
-//     LogError("[%s] Failed to query (error: %s)", DB_CONF_NAME, error);
-//     ReplyToCommand(client, "[BAN] Something it's wrong, please report to Aleexxx :'v");
-//   }
-//   return Plugin_Handled;
-// }
-
-// public Action OnClientSayCommand(int client, const char[] command, const char[] sArgs) {
-//     PrepareBan(client, g_ban_target[client], g_ban_time[client], sArgs, buffer, sizeof(buffer));
-//     PrintToChat(client, "%s", buffer);
-//     return Plugin_Stop;
-//   }
-//   return Plugin_Continue;
-// }
-
-
-// public void onBanUpdated(Database db, int client, int numQueries, DBResultSet[] results, any[] queryData) {
-
-// }
-
-// public void onUnbanFailed(Database db, any data, int numQueries, const char[] error, int failIndex, any[] queryData) {
-//   LogError("(unban) Error in Database Execution: %s", error);
-// }
-
-
-// public void unban(int client, int target) {
-// 	Format(sql_command, 255, "SELECT UNIX_TIMESTAMP(dt_ban_expiration) FROM bans_active WHERE player_id = %s LIMIT 1;", steam_id);
-// 	g_database.Query(onAnyQuery, sql_command, client, DBPrio_High);
-// }
+public void onUnban(Database db, DBResultSet results, const char[] error, int client) {
+	if (StrEqual(error, "")) {
+		int target = GetBanTarget(client);
+		PrintToChat(client, "[BAN] Ban has been removed successfully", target);
+	} else {
+		PrintToChat(client, "[BAN] Ban could not be removed because %s", error);
+	}
+}

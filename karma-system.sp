@@ -10,11 +10,11 @@
 #include <karma/database.sp>
 #include <karma/bans.sp>
 
-public Plugin myinfo = {
-	name = "Karma System",
-	author = "Aleexxx",
-	description = "",
-	version = SOURCEMOD_VERSION,
+public Plugin myinfo =  {
+	name = "Karma System", 
+	author = "Aleexxx", 
+	description = "", 
+	version = SOURCEMOD_VERSION, 
 	url = "https://l4d.dev/about/karma-ban-system"
 };
 
@@ -34,7 +34,7 @@ public Action CommandRegister(int client, int args) {
 	GetClientAuthId(client, AuthId_Steam2, steam_id, sizeof(steam_id));
 	char sql_command[128];
 	Format(sql_command, sizeof(sql_command), "SELECT `discord_password` FROM `players` WHERE `steamid` = '%s' LIMIT 1;", steam_id);
-	g_database.Query(onPlayerRegister, sql_command, client, DBPrio_High);
+	g_database.Query(onPlayerRegister, sql_command, client);
 }
 
 public void onPlayerRegister(Database db, DBResultSet results, const char[] error, int client)
@@ -56,10 +56,8 @@ public void onPlayerRegister(Database db, DBResultSet results, const char[] erro
 				char password[12];
 				results.FetchString(0, password, 12);
 				PrintToChat(client, "\x04[\x05DISCORD\x04]\x01 Please don\'t shared this!\nCopy and paste this in \x05#bot-spam\x01 of discord:\n\x04!\x05register \"%s\" \"%s\"", steam_id, password);
-				break;
 			} else {
 				ReplyToCommand(client, "\x04[\x05DISCORD\x04]\x01 The player with the steam id %s does not exist", steam_id);
-				break;
 			}
 		}
 	} while (results.FetchMoreResults());

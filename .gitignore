@@ -1,5 +1,3 @@
-compile.exe
-spcomp.exe
-compile.dat
+spcomp*
 include/*.inc
 compiled
