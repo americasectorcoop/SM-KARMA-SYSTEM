@@ -19,17 +19,15 @@ BEGIN
 		-- si si se multiplica numer o de intento * tiempo por intento 
 		IF((COUNT(IF(L.dt_created >= NOW() - INTERVAL R.time_to_remain DAY, 1, NULL)) + 1) < R.max_limit, (COUNT(IF(L.dt_created >= NOW() - INTERVAL R.time_to_remain DAY, 1, NULL)) + 1) * R.time_by_attempt, 0) INTO _time_to_ban
 	FROM ks_bans_reasons AS R
-	INNER JOIN ks_bans_logs AS L ON L.ban_reason_id=R.id AND L.forgiven=0
-	WHERE
-		L.steam_id = _target_id AND L.ban_reason_id = _reason_id
-	GROUP BY L.steam_id;
+	LEFT JOIN ks_bans_logs AS L ON L.ban_reason_id=R.id AND L.forgiven=0 AND L.target_steam_id=_target_id AND L.ban_reason_id=_reason_id
+	WHERE R.id=_reason_id;
 
 	START TRANSACTION;
 
-	INSERT INTO ks_bans_logs (steam_id, ip, ban_reason_id, admin_steam_id, dt_created) VALUES( _target_id, _target_ip, _reason_id, _admin_id, NOW() );
-
-	INSERT INTO ks_bans_active (steam_id, ban_reason_id, ip, dt_ban_expiration) VALUES( _target_id, _reason_id, _target_ip,
-		IF(_time_to_ban > 0, NOW() + INTERVAL _time_to_ban MINUTE, NULL)
+	INSERT INTO ks_bans_logs (
+		target_steam_id, target_ip, admin_hangman_steam_id, ban_reason_id, dt_ban_expiration
+	) VALUES(
+		_target_id, _target_ip, _admin_id, _reason_id, IF(_time_to_ban > 0, NOW() + INTERVAL _time_to_ban MINUTE, NULL)
 	);
 
 	COMMIT;

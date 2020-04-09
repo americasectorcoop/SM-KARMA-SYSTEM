@@ -24,7 +24,3 @@ public void vGotDatabase(Database database, const char[] error, any data)
 	g_database = database;
 	OnDatabaseConnected();
 }
-
-public void onAnyQuery(Database db, DBResultSet results, const char[] error, any data) {
-	
-} 
