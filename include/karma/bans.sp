@@ -7,25 +7,22 @@ TopMenu g_bans_main_menu;
 ArrayList AdtBanReasons;
 ArrayList AdtUnbanReasons;
 
-// Definición de current ban - INTEGER
-#define CURRENT_BAN_INDEX_TARGET 0
-#define CURRENT_BAN_INDEX_USERID 1
-#define CURRENT_BAN_INDEX_REASON 2
+enum struct PlayerBan {
+	int target;
+	int reason_id;
+	char authid[32];
+	char ipv4[16];
+}
 
-// Definición de current ban - STRINGS
-#define CURRENT_BAN_INDEX_STEAMID 0
-#define CURRENT_BAN_INDEX_CLIENTIP 1
+enum struct PlayerUnban {
+	int log_id;
+	char name[MAX_NAME_LENGTH];
+}
 
-char sCurrentBan[MAXPLAYERS + 1][2][32];
-int iCurrentBan[MAXPLAYERS + 1][3];
-
-char sCurrentUnbanName[MAXPLAYERS + 1][MAX_NAME_LENGTH];
-char iCurrentUnbanId[MAXPLAYERS + 1];
+PlayerBan iBanDetails[MAXPLAYERS + 1];
+PlayerUnban iUnbanDetails[MAXPLAYERS + 1];
 
 void vBansRegister() {
-	LoadTranslations("common.phrases");
-	LoadTranslations("basebans.phrases");
-	LoadTranslations("core.phrases");
 	
 	RegAdminCmd("sm_ban", CommandBan, ADMFLAG_GENERIC, "sm_ban <#userid|name>");
 	RegAdminCmd("sm_unban", CommandUnban, ADMFLAG_GENERIC, "sm_unban <steamid>");
@@ -39,8 +36,8 @@ void vBansRegister() {
 	AdtBanReasons = new ArrayList(MAX_REASON_LENGTH);
 	AdtUnbanReasons = new ArrayList(MAX_REASON_LENGTH);
 	
-	g_database.Query(onBanFetchReasons, "SELECT `id`, `description` FROM `ks_bans_reasons`;", AdtBanReasons, DBPrio_High);
-	g_database.Query(onBanFetchReasons, "SELECT `id`, `description` FROM `ks_unbans_reasons`;", AdtUnbanReasons, DBPrio_High);
+	g_database.Query(onBanFetchReasons, "SELECT `id`, `description` FROM `ks_bans_reasons` ORDER BY `id`;", AdtBanReasons, DBPrio_High);
+	g_database.Query(onBanFetchReasons, "SELECT `id`, `description` FROM `ks_unbans_reasons` ORDER BY `id`;", AdtUnbanReasons, DBPrio_High);
 }
 
 public void onBanFetchReasons(Database db, DBResultSet results, const char[] error, ArrayList global) {
@@ -121,7 +118,7 @@ public void onBanListFetch(Database db, DBResultSet results, const char[] error,
 		menu.ExitBackButton = true;
 		while (results.FetchRow()) {
 			char player_name[MAX_NAME_LENGTH], ban_id[20];
-			results.FetchString(0, sCurrentUnbanName[client], MAX_NAME_LENGTH);
+			results.FetchString(0, iUnbanDetails[client].name, MAX_NAME_LENGTH);
 			results.FetchString(0, player_name, MAX_NAME_LENGTH);
 			results.FetchString(1, ban_id, 20);
 			menu.AddItem(ban_id, player_name);
@@ -142,7 +139,7 @@ public int MenuHandler_UnbanSelected(Menu menu, MenuAction action, int client, i
 		char data[255];
 		menu.GetItem(param2, data, 255);
 		int ban_id = StringToInt(data);
-		iCurrentUnbanId[client] = ban_id;
+		iUnbanDetails[client].log_id = ban_id;
 		vDisplayBanReasonsMenu(client, MenuHandler_UnbanReason, "Unban reason", AdtUnbanReasons);
 	}
 }
@@ -158,7 +155,7 @@ public int MenuHandler_UnbanReason(Menu menu, MenuAction action, int client, int
 		char data[255];
 		menu.GetItem(param2, data, 255);
 		int reason_id = StringToInt(data);
-		Unban(client, iCurrentUnbanId[client], reason_id);
+		Unban(client, iUnbanDetails[client].log_id, reason_id);
 	}
 }
 
@@ -167,7 +164,7 @@ public Action CommandBan(int client, int args) {
 		DisplayBanTargetMenu(client);
 		return Plugin_Handled;
 	}
-	
+
 	char target_arg[64];
 	GetCmdArg(1, target_arg, 64);
 	ReplaceString(target_arg, sizeof(target_arg), "\"", "");
@@ -187,7 +184,7 @@ void DisplayBanTargetMenu(int client) {
 	Menu menu = new Menu(MenuHandler_BanPlayerList);
 	
 	char title[100];
-	Format(title, sizeof(title), "%T:", "Ban player", client);
+	Format(title, 100, "Ban player");
 	menu.SetTitle(title);
 	menu.ExitBackButton = true;
 	
@@ -221,7 +218,7 @@ public int MenuHandler_BanPlayerList(Menu menu, MenuAction action, int client, i
 
 void vDisplayBanReasonsMenu(int client, MenuHandler handler, const char[] title, ArrayList reasons) {
 	Menu menu = new Menu(handler);
-	menu.SetTitle("%s %N", title, GetBanTarget(client));
+	menu.SetTitle("%s %N", title, iBanDetails[client].target);
 	menu.ExitBackButton = true;
 	for (int i = 0, length = reasons.Length; i < length; i++) {
 		ArrayList ban_reason = reasons.Get(i);
@@ -245,60 +242,18 @@ public int MenuHandler_BanReasonList(Menu menu, MenuAction action, int client, i
 		char char_reason_id[64];
 		menu.GetItem(param2, char_reason_id, sizeof(char_reason_id));
 		int reason_id = StringToInt(char_reason_id);
-		SetBanReason(client, reason_id);
-		AddBan(client);
+		iBanDetails[client].reason_id = reason_id;
+		ExecBan(client);
 	}
 }
 
 stock void StoreBanTarget(int client, int target) {
-	SetBanTarget(client, target);
-	SetBanUserId(client, target);
-	SetBanSteamId(client, target);
-	SetBanClientIp(client, target);
-}
-
-stock void SetBanSteamId(int client, int target) {
-	char target_steam_id[32];
+	iBanDetails[client].target = target;
+	char target_steam_id[32], target_ip[16];
 	GetClientAuthId(target, AuthId_Steam2, target_steam_id, 32);
-	Format(sCurrentBan[client][CURRENT_BAN_INDEX_STEAMID], 32, "%s", target_steam_id);
-}
-
-stock void GetBanSteamId(int client, char[] steam_id, int size_of) {
-	Format(steam_id, size_of, "%s", sCurrentBan[client][CURRENT_BAN_INDEX_STEAMID]);
-}
-
-stock void SetBanClientIp(int client, int target) {
-	char target_ip[16];
+	Format(iBanDetails[client].authid, 32, "%s", target_steam_id);
 	GetClientIP(target, target_ip, 16);
-	Format(sCurrentBan[client][CURRENT_BAN_INDEX_CLIENTIP], 16, "%s", target_ip);
-}
-
-stock void GetBanClientIp(int client, char[] target_ip, int size_of) {
-	Format(target_ip, size_of, "%s", sCurrentBan[client][CURRENT_BAN_INDEX_CLIENTIP]);
-}
-
-stock void SetBanTarget(int client, int target) {
-	iCurrentBan[client][CURRENT_BAN_INDEX_TARGET] = target;
-}
-
-stock int GetBanTarget(int client) {
-	return iCurrentBan[client][CURRENT_BAN_INDEX_TARGET];
-}
-
-stock void SetBanUserId(int client, int userid) {
-	iCurrentBan[client][CURRENT_BAN_INDEX_USERID] = userid;
-}
-
-stock int GetBanUserId(int client) {
-	return iCurrentBan[client][CURRENT_BAN_INDEX_USERID];
-}
-
-stock void SetBanReason(int client, int reason_id) {
-	iCurrentBan[client][CURRENT_BAN_INDEX_REASON] = reason_id;
-}
-
-stock int GetBanReason(int client) {
-	return iCurrentBan[client][CURRENT_BAN_INDEX_REASON];
+	Format(iBanDetails[client].ipv4, 16, "%s", target_ip);
 }
 
 public void OnAdminMenuReady(Handle aTopMenu)
@@ -316,40 +271,45 @@ public void OnAdminMenuReady(Handle aTopMenu)
 	
 	if (player_commands != INVALID_TOPMENUOBJECT) {
 		g_bans_main_menu.AddItem("sm_ban", AdminMenu_Ban, player_commands, "sm_ban", ADMFLAG_GENERIC);
+		g_bans_main_menu.AddItem("sm_unban", AdminMenu_Unban, player_commands, "sm_unban", ADMFLAG_GENERIC);
 	}
 }
 
-public void AdminMenu_Ban(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int param, char[] buffer, int maxlength) {
+public void AdminMenu_Ban(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int client, char[] buffer, int maxlength) {
 	if (action == TopMenuAction_DisplayOption) {
-		Format(buffer, maxlength, "Ban player", param);
+		Format(buffer, maxlength, "Ban player", client);
 	} else if (action == TopMenuAction_SelectOption) {
-		DisplayBanTargetMenu(param);
+		DisplayBanTargetMenu(client);
 	}
 }
 
-void AddBan(int client) {
-	char target_steam_id[32], target_ip[16];
-	GetBanSteamId(client, target_steam_id, 32);
-	GetBanClientIp(client, target_ip, 16);
-	int reason_id = GetBanReason(client);
+public void AdminMenu_Unban(TopMenu topmenu, TopMenuAction action, TopMenuObject object_id, int client, char[] buffer, int maxlength) {
+	if (action == TopMenuAction_DisplayOption) {
+		Format(buffer, maxlength, "Unban player", client);
+	} else if (action == TopMenuAction_SelectOption) {
+		FetchBanList(client);
+	}
+}
+
+void ExecBan(int client) {
 	char sql_command[128];
 	char client_steam_id[32];
 	GetClientAuthId(client, AuthId_Steam2, client_steam_id, 32);
-	Format(sql_command, sizeof(sql_command), "CALL KS_BAN_ADD('%s', '%s', '%s', %d);", target_steam_id, target_ip, client_steam_id, reason_id);
+	Format(sql_command, 128, "CALL KS_BAN_ADD('%s', '%s', '%s', %d);", iBanDetails[client].authid, iBanDetails[client].ipv4, client_steam_id, iBanDetails[client].reason_id);
 	g_database.Query(onBanStored, sql_command, client);
 }
 
 public void onBanStored(Database db, DBResultSet results, const char[] error, int client) {
-	int target = GetBanTarget(client);
 	if (StrEqual(error, "")) {
-		int reason_id = GetBanReason(client);
 		char reason_description[MAX_REASON_LENGTH];
-		ArrayList ban_reason = AdtBanReasons.Get(reason_id);
+		// FIX: this patch just work if from QUERY ban reasons are ordered by id 
+		int index = iBanDetails[client].reason_id - 1;
+		ArrayList ban_reason = AdtBanReasons.Get(index);
 		ban_reason.GetString(1, reason_description, MAX_REASON_LENGTH);
-		PrintToChat(client, "\x04[\x05BAN\x04]\x01 Ban for \x03%N\x01(reason: \x03%s\x01) has been added successfully", target, reason_description);
-		KickClient(target, "You have been banned because %s,\n please visit: %s", reason_description, BANS_URL);
+		PrintToChat(client, "\x04[\x05BAN\x04]\x01 Ban for \x03%N\x01(reason: \x03%s\x01) has been added successfully", iBanDetails[client].target, reason_description);
+		KickClient(iBanDetails[client].target, "You have been banned because %s,\n please visit: %s", reason_description, BANS_URL);
 	} else {
-		PrintToChat(client, "\x04[\x05BAN\x04]\x01 Ban for \x03%N\x01 couldn't be added because %s", target, error);
+		PrintToChat(client, "\x04[\x05BAN\x04]\x01 Ban for \x03%N\x01 couldn't be added because %s", iBanDetails[client].target, error);
 	}
 }
 
@@ -362,8 +322,8 @@ stock void Unban(int client, int ban_id, int reason_id) {
 
 public void onUnban(Database db, DBResultSet results, const char[] error, int client) {
 	if (StrEqual(error, "")) {
-		PrintToChat(client, "\x04[\x05UNBAN\x04]\x01 Ban for \x03%s\x01 has been removed successfully", sCurrentUnbanName[client]);
+		PrintToChat(client, "\x04[\x05UNBAN\x04]\x01 Ban for \x03%s\x01 has been removed successfully", iUnbanDetails[client].name);
 	} else {
-		PrintToChat(client, "\x04[\x05UNBAN\x04]\x01 Ban for \x03%s\x01 couldn't be removed because %s", sCurrentUnbanName[client], error);
+		PrintToChat(client, "\x04[\x05UNBAN\x04]\x01 Ban for \x03%s\x01 couldn't be removed because %s", iUnbanDetails[client].name, error);
 	}
 }
