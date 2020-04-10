@@ -81,12 +81,14 @@ public void onPlayerFetch(Database db, DBResultSet results, const char[] error, 
 		LogError("Query failed! %s", error);
 		return;
 	} else if (results.RowCount > 0) {
+		char hostname[96];
+		FindConVar("hostname").GetString(hostname, sizeof(hostname));
 		while (results.FetchRow()) {
 			int ban_actived = results.FetchInt(0);
 			if (ban_actived == 1) {
 				char reason[255];
 				results.FetchString(1, reason, 255);
-				KickClient(client, "You're banned, reason: %s\nplease visit: %s", reason, BANS_URL);
+				KickClient(client, "%s\n\nYou're banned, reason: %s\n\nPlease visit: %s", hostname, reason, BANS_URL);
 			}
 		}
 	}
@@ -94,11 +96,11 @@ public void onPlayerFetch(Database db, DBResultSet results, const char[] error, 
 }
 
 public Action CommandUnban(int client, int args) {
-	FetchBanList(client);
+	FetchBanListForUnban(client);
 	return Plugin_Handled;
 }
 
-void FetchBanList(int client) {
+void FetchBanListForUnban(int client) {
 	PrintToChat(client, "\x04[\x05UNBAN\x04]\x01 Wait a moment, fetching your ban list");
 	char client_steam_id[32], sql_command[128];
 	GetClientAuthId(client, AuthId_Steam2, client_steam_id, 32);
@@ -287,7 +289,7 @@ public void AdminMenu_Unban(TopMenu topmenu, TopMenuAction action, TopMenuObject
 	if (action == TopMenuAction_DisplayOption) {
 		Format(buffer, maxlength, "Unban player", client);
 	} else if (action == TopMenuAction_SelectOption) {
-		FetchBanList(client);
+		FetchBanListForUnban(client);
 	}
 }
 
@@ -307,7 +309,9 @@ public void onBanStored(Database db, DBResultSet results, const char[] error, in
 		ArrayList ban_reason = AdtBanReasons.Get(index);
 		ban_reason.GetString(1, reason_description, MAX_REASON_LENGTH);
 		PrintToChat(client, "\x04[\x05BAN\x04]\x01 Ban for \x03%N\x01(reason: \x03%s\x01) has been added successfully", iBanDetails[client].target, reason_description);
-		KickClient(iBanDetails[client].target, "You have been banned because %s,\n please visit: %s", reason_description, BANS_URL);
+		char hostname[96];
+		FindConVar("hostname").GetString(hostname, sizeof(hostname));
+		KickClient(iBanDetails[client].target, "%s\n\nYou have been banned because: %s,\n\n Please visit: %s", hostname, reason_description, BANS_URL);
 	} else {
 		PrintToChat(client, "\x04[\x05BAN\x04]\x01 Ban for \x03%N\x01 couldn't be added because %s", iBanDetails[client].target, error);
 	}
