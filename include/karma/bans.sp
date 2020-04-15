@@ -1,3 +1,4 @@
+#define CHECK_BAN_ON_AUTHORIZATION true
 #define MAX_ID_LENGTH 3
 #define MAX_REASON_LENGTH 255
 #define BANS_URL "l4d.dev/bans"
@@ -62,6 +63,7 @@ public void onBanFetchReasons(Database db, DBResultSet results, const char[] err
 	while (results.FetchMoreResults()) {}
 }
 
+#if CHECK_BAN_ON_AUTHORIZATION
 // Funcion para cuando un jugador se conecta al servidor...
 public void OnClientAuthorized(int client, const char[] auth) {
 	if (!client)return;
@@ -94,6 +96,7 @@ public void onPlayerFetch(Database db, DBResultSet results, const char[] error, 
 	}
 	while (results.FetchMoreResults()) {}
 }
+#endif
 
 public Action CommandUnban(int client, int args) {
 	FetchBanListForUnban(client);
