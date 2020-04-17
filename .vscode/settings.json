@@ -10,6 +10,8 @@
     "**/include/*.inc": true,
     "**/compile": true,
     "**/spcomp*": true
-  }
+  },
+  "editor.tabSize": 2,
+  "editor.useTabStops": false
 }
 // file_path_new, "-D", compile_path, "-v 0", "-i"
