@@ -7,8 +7,8 @@
 
 #define DISCORD_URL "discord.l4d.dev"
 
-#include <karma/database.sp>
-#include <karma/bans.sp>
+#include <karma/database>
+#include <karma/bans>
 
 public Plugin myinfo =  {
   name = "Karma System", 
