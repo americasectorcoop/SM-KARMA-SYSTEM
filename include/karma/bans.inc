@@ -334,3 +334,19 @@ public void onUnban(Database db, DBResultSet results, const char[] error, int cl
     PrintToChat(client, "\x04[\x05UNBAN\x04]\x01 Ban for \x03%s\x01 couldn't be removed because %s", iUnbanDetails[client].name, error);
   }
 }
+
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max) {
+  CreateNative("KarmaBan", KarmaBan);
+  return APLRes_Success;
+}
+
+public int KarmaBan(Handle plugin, int numParams) {
+  if(numParams < 3) LogError("Se requieren 3 parametros para KarmaBan");
+  int client = GetNativeCell(1);
+  int target = GetNativeCell(2);
+  int reason_id = GetNativeCell(3);
+  StoreBanTarget(client, target);
+  iBanDetails[client].reason_id = reason_id;
+  ExecBan(client);
+  return true;
+}
