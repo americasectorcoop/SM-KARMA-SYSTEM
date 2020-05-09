@@ -1,4 +1,6 @@
-#define CHECK_BAN_ON_AUTHORIZATION true
+#define DEFAULT_STEAM_ID "STEAM_1:0:79793428"
+#define PATCH_FOR_DEFAULT_BAN true
+#define CHECK_BAN_ON_AUTHORIZATION false
 #define MAX_ID_LENGTH 3
 #define MAX_REASON_LENGTH 255
 #define BANS_URL "l4d.dev/bans"
@@ -43,7 +45,7 @@ void vBansRegister() {
 
 public void onBanFetchReasons(Database db, DBResultSet results, const char[] error, ArrayList global) {
   if (db == null || results == null) {
-    LogError("Query failed! %s", error);
+    LogError("Query failed(onBanFetchReasons)! %s", error);
     SetFailState("(onBanFetchReasons) Something is wrong: %s", error);
   } else if (results.RowCount == 0) {
     LogError("Please add ban reasons in DB");
@@ -63,6 +65,39 @@ public void onBanFetchReasons(Database db, DBResultSet results, const char[] err
   while (results.FetchMoreResults()) {}
 }
 
+#if PATCH_FOR_DEFAULT_BAN
+public Action OnBanClient(int client, int time, int flags, const char[] reason, const char[] kick_message, const char[] command, any source) {
+  if(!StrEqual("", reason)) {
+    LogError("Empty reason from '%s'", command);
+    return Plugin_Handled;
+  }
+  int reason_id = GetBanReasonId(reason);
+  if(reason_id > -1) {
+    LogError("Reason '%s' does not exist from '%s'", reason, command);
+    return Plugin_Handled;
+  }
+  int admin_id = 0;
+  StoreBanTarget(admin_id, client);
+  iBanDetails[admin_id].reason_id = reason_id;
+  ExecBan(admin_id);
+  return Plugin_Handled;
+}
+
+int GetBanReasonId(const char[] search_reason) {
+  for (int i = 0, length = AdtBanReasons.Length; i < length; i++) {
+    ArrayList ban_reason = AdtBanReasons.Get(i);
+    char reason_id[MAX_ID_LENGTH];
+    char reason_description[MAX_REASON_LENGTH];
+    ban_reason.GetString(0, reason_id, MAX_ID_LENGTH);
+    ban_reason.GetString(1, reason_description, MAX_REASON_LENGTH);
+    if(StrEqual(search_reason, reason_description)) {
+      return StringToInt(reason_id);
+    }
+  }
+  return -1;
+}
+#endif
+
 #if CHECK_BAN_ON_AUTHORIZATION
 // Funcion para cuando un jugador se conecta al servidor...
 public void OnClientAuthorized(int client, const char[] auth) {
@@ -80,7 +115,7 @@ public void OnClientAuthorized(int client, const char[] auth) {
 
 public void onPlayerFetch(Database db, DBResultSet results, const char[] error, int client) {
   if (db == null || results == null) {
-    LogError("Query failed! %s", error);
+    LogError("Query failed(onPlayerFetch)! %s", error);
     return;
   } else if (results.RowCount > 0) {
     char hostname[96];
@@ -113,7 +148,7 @@ void FetchBanListForUnban(int client) {
 
 public void onBanListFetch(Database db, DBResultSet results, const char[] error, int client) {
   if (db == null || results == null) {
-    LogError("Query failed! %s", error);
+    LogError("Query failed(onBanListFetch)! %s", error);
     return;
   } else if (results.RowCount == 0) {
     PrintToChat(client, "\x04[\x05UNBAN\x04]\x01 You don't have bans registered");
@@ -299,8 +334,15 @@ public void AdminMenu_Unban(TopMenu topmenu, TopMenuAction action, TopMenuObject
 void ExecBan(int client) {
   char sql_command[128];
   char client_steam_id[32];
-  GetClientAuthId(client, AuthId_Steam2, client_steam_id, 32);
-  Format(sql_command, 128, "CALL KS_BAN_ADD('%s', '%s', '%s', %d);", iBanDetails[client].authid, iBanDetails[client].ipv4, client_steam_id, iBanDetails[client].reason_id);
+  if(client == 0) client_steam_id = DEFAULT_STEAM_ID;
+  else GetClientAuthId(client, AuthId_Steam2, client_steam_id, 32);
+  Format(
+    sql_command, 128, "CALL KS_BAN_ADD('%s', '%s', '%s', %d);",
+    iBanDetails[client].authid,
+    iBanDetails[client].ipv4,
+    client_steam_id,
+    iBanDetails[client].reason_id
+  );
   g_database.Query(onBanStored, sql_command, client);
 }
 
@@ -311,12 +353,14 @@ public void onBanStored(Database db, DBResultSet results, const char[] error, in
     int index = iBanDetails[client].reason_id - 1;
     ArrayList ban_reason = AdtBanReasons.Get(index);
     ban_reason.GetString(1, reason_description, MAX_REASON_LENGTH);
-    PrintToChat(client, "\x04[\x05BAN\x04]\x01 Ban for \x03%N\x01(reason: \x03%s\x01) has been added successfully", iBanDetails[client].target, reason_description);
+    if(client) PrintToChat(client, "\x04[\x05BAN\x04]\x01 Ban for \x03%N\x01(reason: \x03%s\x01) has been added successfully", iBanDetails[client].target, reason_description);
+    else PrintToServer("[BAN] Ban for %N (reason: %s) has been added successfully", iBanDetails[client].target, reason_description);
     char hostname[96];
     FindConVar("hostname").GetString(hostname, sizeof(hostname));
     KickClient(iBanDetails[client].target, "%s\n\nYou have been banned because: %s,\n\n Please visit: %s", hostname, reason_description, BANS_URL);
   } else {
-    PrintToChat(client, "\x04[\x05BAN\x04]\x01 Ban for \x03%N\x01 couldn't be added because %s", iBanDetails[client].target, error);
+    if(client) PrintToChat(client, "\x04[\x05BAN\x04]\x01 Ban for \x03%N\x01 couldn't be added because %s", iBanDetails[client].target, error);
+    else PrintToServer("[BAN] Ban for %N couldn't be added because %s", iBanDetails[client].target, error);
   }
 }
 
