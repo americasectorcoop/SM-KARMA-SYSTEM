@@ -44,12 +44,10 @@ void vBansRegister() {
 }
 
 public void onBanFetchReasons(Database db, DBResultSet results, const char[] error, ArrayList global) {
-  if (db == null || results == null) {
+  if (!db || !results || error[0]) {
     LogError("Query failed(onBanFetchReasons)! %s", error);
-    SetFailState("(onBanFetchReasons) Something is wrong: %s", error);
   } else if (results.RowCount == 0) {
     LogError("Please add ban reasons in DB");
-    SetFailState("Please add ban reasons in DB");
   } else {
     while (results.FetchRow()) {
       char reason_id[MAX_ID_LENGTH];
@@ -114,9 +112,8 @@ public void OnClientAuthorized(int client, const char[] auth) {
 }
 
 public void onPlayerFetch(Database db, DBResultSet results, const char[] error, int client) {
-  if (db == null || results == null) {
+  if (!db || !results || error[0]) {
     LogError("Query failed(onPlayerFetch)! %s", error);
-    return;
   } else if (results.RowCount > 0) {
     char hostname[96];
     FindConVar("hostname").GetString(hostname, sizeof(hostname));
@@ -147,9 +144,8 @@ void FetchBanListForUnban(int client) {
 }
 
 public void onBanListFetch(Database db, DBResultSet results, const char[] error, int client) {
-  if (db == null || results == null) {
+  if (!db || !results || error[0]) {
     LogError("Query failed(onBanListFetch)! %s", error);
-    return;
   } else if (results.RowCount == 0) {
     PrintToChat(client, "\x04[\x05UNBAN\x04]\x01 You don't have bans registered");
   } else if(results.RowCount > 0) {

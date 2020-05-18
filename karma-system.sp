@@ -42,13 +42,11 @@ public void onPlayerRegister(Database db, DBResultSet results, const char[] erro
 {
   char steam_id[32];
   GetClientAuthId(client, AuthId_Steam2, steam_id, sizeof(steam_id));
-  if (db == null || results == null) {
+  if (!db || !results || error[0]) {
     LogError("[KARMA-SYSTEM(CommandRegister)] Failed to query (error: %s)", error);
     PrintToChat(client, "\x04[\x05DISCORD\x04]\x01 Something it's wrong, please report to Aleexxx :'v");
-    return;
   } else if (results.RowCount == 0) {
     PrintToChat(client, "\x04[\x05DISCORD\x04]\x01 The player with the steam id %s does not exist", steam_id);
-    return;
   } else {
     while (results.FetchRow()) {
       // Extrayendo datos
